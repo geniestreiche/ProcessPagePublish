@@ -1,0 +1,114 @@
+<?php
+
+/**
+ * ProcessPagePublish
+ *
+ * By Jens Geiling
+ *
+ */
+
+class ProcessPagePublish extends Process {
+	
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Page Publish', 
+			'version' => '100', 
+			'summary' => 'Adds a "publish" link to the page list.',
+			'permission' => 'page-publish',
+			'autoload' => true 
+		);
+	}
+	
+	const adminPageName = 'publish';
+	
+	public function init() {
+		parent::init();
+	}
+
+	
+	public function ___execute() {
+		$page = $this->pages->get((int) $this->input->get->id);
+		if(!$page->editable()) throw new WirePermissionException("You don't have access to edit that page");
+		
+		if (!$page->is(Page::statusUnpublished)) {
+			$page->addStatus(Page::statusUnpublished);
+		} else {
+			$page->removeStatus(Page::statusUnpublished);
+		}
+
+		$page->save();
+    	$parent_id = $page->parent_id;
+    	$this->session->redirect("../?open={$parent_id}");
+    }
+
+	
+	public function ready() {
+	    $process = wire('page')->process;
+	    
+	    if($process == 'ProcessPageList') {
+	    	$this->addHookAfter("ProcessPageListRender::getPageActions", $this, 'hookPageListActions');
+	    }
+
+	}
+
+	public function hookPageListActions(HookEvent $event) {
+	    $page = $event->arguments[0]; 	
+
+	    if($page->editable()) {
+		    $actions = $event->return;
+		    
+		    $new_action = array(
+		        'cn' => 'Publish',
+		        'name' => 'publish',
+		        'url' => $this->config->urls->admin . "page/publish/?id={$page->id}"
+		        );
+		        
+		    $actions = $this->array_insert($actions, ((int) count($actions)-1), $new_action);
+			
+		    $event->return = $actions;
+	    }
+	}
+	
+	public function ___install() {
+
+		if(ProcessWire::versionMajor == 2 && ProcessWire::versionMinor < 1) {
+			throw new WireException("This module requires ProcessWire 2.1 or newer"); 
+		}
+
+		$page = $this->getInstalledPage();
+		$this->message("Installed to {$page->path}"); 
+	}
+
+	protected function getInstalledPage() {
+		$parent = $this->pages->get("name=page,parent=".$this->config->adminRootPageID); 
+		$page = $parent->child("name=publish"); 
+
+		if(!$page->id) { 	
+			$page = new Page();
+			$page->parent = $parent; 
+			$page->template = $this->templates->get('admin');
+			$page->name = "publish"; 
+			$page->title = "Publish Page";
+			$page->process = $this; 
+			$page->sort = $parent->numChildren;
+			$page->save();
+		}
+		return $page; 	
+	}
+
+	public function ___uninstall() {
+		$page = $this->getInstalledPage();	
+		if($page->id) { 
+			$this->message("Removed {$page->path}");
+			$this->pages->delete($page); 
+		}
+	}
+
+	private function array_insert($array, $pos, $val) {
+	   $array2 = array_splice($array,$pos);
+	   $array[] = $val;
+	   $array = array_merge($array,$array2);
+	   
+	   return $array;
+	}
+}
