@@ -11,11 +11,12 @@ class ProcessPagePublish extends Process {
 	
 	public static function getModuleInfo() {
 		return array(
-			'title' => 'Page Publish', 
-			'version' => '100', 
-			'summary' => 'Adds a "publish" link to the page list.',
+			'title' => __('Page Publish/Unpublish', __FILE__),
+			'summary' => __('Adds a "publish" link to the page list.', __FILE__),
+			'version' => '100',
+			'permanent' => false,
 			'permission' => 'page-publish',
-			'autoload' => true 
+			'autoload' => true
 		);
 	}
 
@@ -53,7 +54,7 @@ class ProcessPagePublish extends Process {
 	
 	public function ___execute() {
 		$page = $this->pages->get((int) $this->input->get->id);
-		if(!$this->hasPermission($this->page)) throw new WirePermissionException("$error C");
+		if (!$this->hasPermission($page)) throw new WirePermissionException("You are unable to publish/unpublish this page!");
 		
 		if (!$page->is(Page::statusUnpublished)) {
 			$page->addStatus(Page::statusUnpublished);
@@ -66,18 +67,13 @@ class ProcessPagePublish extends Process {
     	$this->session->redirect("../?open={$page}");
     }
 
-    public function hasPermission(Page $page) {
+	public function hasPermission(Page $page) {
 		$user = $this->user; 
 
 		if($page->is(Page::statusSystem) || $page->is(Page::statusSystemID)) return false; 
-		if($page->parent->template->noChildren) return false; 
-		if($page->template->noParents) return false; 
-
-		if(count($page->parent->template->childTemplates) && !in_array($page->template->id, $page->parent->template->childTemplates)) return false; 
-		if(count($page->template->parentTemplates) && !in_array($page->parent->template->id, $page->template->parentTemplates)) return false; 
-
-		if($user->isSuperuser()) return true; 
-		if($user->hasPermission('page-create', $page) && $user->hasPermission('page-publish', $page)) return true; 
+		
+		if($user->isSuperuser()) return true;
+		if($user->hasPermission('page-publish', $page)) return true;
 
 		return false; 
 	}
